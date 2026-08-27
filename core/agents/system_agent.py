@@ -2,17 +2,18 @@
 System Agent
 
 Handles OS-level actions: app control, terminal, clipboard, screenshots
+Cross-platform: Works on Linux, Windows, and macOS
 """
 from typing import Dict, Any
-from core.tools.os_tools import OSTools
+from core.tools.os_tools_unified import UnifiedOSTools
 from core.permissions.policy import PermissionPolicy
 from core.intent.types import RiskLevel
 
 class SystemAgent:
-    """Agent for system-level operations"""
+    """Agent for system-level operations (cross-platform)"""
 
     def __init__(self, permission_policy: PermissionPolicy):
-        self.os_tools = OSTools()
+        self.os_tools = UnifiedOSTools()
         self.permission_policy = permission_policy
 
     def execute(self, action: str, params: Dict[str, Any], risk_level: RiskLevel) -> Dict:

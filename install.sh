@@ -49,9 +49,11 @@ pip install --quiet \
     rich \
     pydantic \
     python-dotenv \
-    google-generativeai \
+    google-genai \
     chromadb \
-    networkx
+    networkx \
+    pystray \
+    pillow
 
 echo "✓ Core dependencies installed"
 

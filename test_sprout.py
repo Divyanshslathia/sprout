@@ -235,7 +235,7 @@ def test_os_tools():
 
 def main():
     """Run all tests"""
-    console.print("\n[bold green]🌱 Sprout Phase 1 Test Suite[/bold green]\n")
+    console.print("\n[bold green]🌱 Sprout Test Suite[/bold green]\n")
 
     try:
         test_intent_classification()

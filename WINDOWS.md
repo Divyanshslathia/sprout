@@ -22,10 +22,10 @@ python -m venv venv
 pip install rich pydantic python-dotenv chromadb networkx
 
 # Optional: Install voice features
-pip install openai-whisper pvporcupine pyttsx3 pyaudio
+pip install openai-whisper openwakeword pyttsx3 pyaudio
 
 # Optional: Install LLM features
-pip install google-generativeai
+pip install google-genai
 ```
 
 ### Configuration
@@ -38,7 +38,6 @@ copy .env.example .env
 2. Edit `.env` and add your API keys:
 ```
 GEMINI_API_KEY=your_key_here
-PORCUPINE_ACCESS_KEY=your_key_here
 ```
 
 ### Running Sprout on Windows

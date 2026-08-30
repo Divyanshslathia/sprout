@@ -16,7 +16,7 @@ class SystemAgent:
         self.os_tools = UnifiedOSTools()
         self.permission_policy = permission_policy
 
-    def execute(self, action: str, params: Dict[str, Any], risk_level: RiskLevel) -> Dict:
+    def execute(self, action: str, params: Dict[str, Any], risk_level: RiskLevel, user_confirmed: bool = False) -> Dict:
         """
         Execute a system action after permission check
 
@@ -30,7 +30,7 @@ class SystemAgent:
         """
         # Permission check
         target = params.get('app_name') or params.get('command') or 'system'
-        allowed, reason = self.permission_policy.check_permission(action, target, risk_level)
+        allowed, reason = self.permission_policy.check_permission(action, target, risk_level, user_confirmed)
 
         if not allowed:
             return {

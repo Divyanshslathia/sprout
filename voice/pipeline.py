@@ -18,16 +18,16 @@ class VoicePipeline:
     """Complete voice interaction pipeline"""
 
     def __init__(self,
-                 porcupine_key: Optional[str] = None,
+                 wake_word_model: Optional[str] = None,
                  on_command: Optional[Callable[[str], str]] = None):
         """
         Initialize voice pipeline
 
         Args:
-            porcupine_key: Porcupine access key
+            wake_word_model: Path to custom wake word model (optional)
             on_command: Callback function that processes voice command and returns response
         """
-        self.porcupine_key = porcupine_key or os.getenv("PORCUPINE_ACCESS_KEY")
+        self.wake_word_model = wake_word_model or voice_config.wake_word_model
         self.on_command = on_command
 
         # Initialize components
@@ -44,7 +44,9 @@ class VoicePipeline:
         if self.wake_word is None:
             try:
                 self.wake_word = WakeWordDetector(
-                    access_key=self.porcupine_key,
+                    model_path=self.wake_word_model if self.wake_word_model != "hey_jarvis" else None,
+                    wake_word=voice_config.wake_word_model,
+                    threshold=voice_config.wake_word_threshold,
                     keyword=voice_config.wake_word
                 )
                 console.print(f"[green]✓ Wake word detector ready[/green]")
@@ -97,7 +99,7 @@ class VoicePipeline:
         try:
             self.wake_word.start_listening(
                 callback=self._on_wake_word_detected,
-                sensitivity=voice_config.porcupine_sensitivity
+                threshold=voice_config.wake_word_threshold
             )
         except KeyboardInterrupt:
             console.print("\n[yellow]Voice mode stopped[/yellow]")

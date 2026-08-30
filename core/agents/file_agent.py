@@ -15,7 +15,7 @@ class FileAgent:
         self.file_tools = FileTools()
         self.permission_policy = permission_policy
 
-    def execute(self, action: str, params: Dict[str, Any], risk_level: RiskLevel) -> Dict:
+    def execute(self, action: str, params: Dict[str, Any], risk_level: RiskLevel, user_confirmed: bool = False) -> Dict:
         """
         Execute a file operation after permission check
 
@@ -32,7 +32,7 @@ class FileAgent:
 
         # Permission check
         allowed, reason = self.permission_policy.check_permission(
-            f"file_{action}", target, risk_level
+            f"file_{action}", target, risk_level, user_confirmed
         )
 
         if not allowed:
@@ -43,16 +43,16 @@ class FileAgent:
             }
 
         # Execute based on action type
-        if action == "read":
+        if action in ["read","read_file"]:
             return self.file_tools.read_file(params['filepath'])
 
-        elif action == "write":
+        elif action in ["write","write_file"]:
             return self.file_tools.write_file(params['filepath'], params['content'])
 
-        elif action == "delete":
+        elif action in ["delete","delete_file"]:
             return self.file_tools.delete_file(params['filepath'])
 
-        elif action == "list":
+        elif action in ["list","list_directory","list_files"]:
             return self.file_tools.list_directory(params['dirpath'])
 
         elif action == "create_dir":

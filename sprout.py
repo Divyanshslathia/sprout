@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.markdown import Markdown
-
+from tray import get_tray
 console = Console()
 
 def print_welcome(mode: str = "text"):
@@ -32,7 +32,7 @@ def print_welcome(mode: str = "text"):
 • 🤖 LLM-powered intent parsing
 • 💡 RAG for personalized responses
 
-Say '[bold]sprout[/bold]' or '[bold]porcupine[/bold]' to activate voice input.
+Say '[bold]Hey Sprout[/bold]' to activate voice input.
 
 [dim]Type 'text' to switch to text mode, or 'exit' to quit.[/dim]
 """
@@ -177,7 +177,7 @@ def run_voice_mode():
 
     except ImportError as e:
         console.print(f"[red]Voice dependencies not installed: {str(e)}[/red]")
-        console.print("[yellow]Install with: pip install openai-whisper pvporcupine pyttsx3 pyaudio[/yellow]")
+        console.print("[yellow]Install with: pip install openai-whisper openwakeword pyttsx3 pyaudio[/yellow]")
         console.print("[yellow]Falling back to text mode...[/yellow]")
         run_text_mode()
 
@@ -310,26 +310,106 @@ def show_recommendations(orchestrator):
 
 def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(description="Sprout - Personal AI OS Assistant")
-    parser.add_argument("--voice", action="store_true", help="Start in voice mode")
-    parser.add_argument("--test", action="store_true", help="Run test suite")
-    parser.add_argument("--demo", action="store_true", help="Run demo")
-
-    args = parser.parse_args()
-
-    if args.test:
-        os.system("python test_sprout.py")
-        return
-
-    if args.demo:
-        os.system("python demo.py")
-        return
-
-    if args.voice:
-        run_voice_mode()
-    else:
-        run_text_mode()
+    run_text_mode()
+def run_background():
+    """
+    Run Sprout as a silent background process.
+ 
+    - No terminal UI
+    - System tray icon shows status
+    - Listens for wake word always
+    - Activates voice pipeline on detection
+    - Logs everything to logs/sprout.log
+    """
+    import logging
+    from pathlib import Path
+    from tray import get_tray
+ 
+    # Setup file logging (no console output in background mode)
+    log_path = Path(__file__).parent / "logs" / "sprout.log"
+    logging.basicConfig(
+        filename=str(log_path),
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s"
+    )
+    log = logging.getLogger("sprout")
+    log.info("Sprout starting in background mode")
+ 
+    # Start tray icon
+    tray = get_tray()
+    tray.start()
+    tray.set_state("idle", "🌱 Sprout — Starting up...")
+ 
+    try:
+        from voice.pipeline import VoicePipeline
+        from core.agents.orchestrator_v2 import EnhancedOrchestrator
+ 
+        orchestrator = EnhancedOrchestrator()
+        log.info("Orchestrator initialized")
+ 
+        def on_wake_word():
+            """Called when wake word is detected."""
+            log.info("Wake word detected")
+            tray.set_state("listening", "🎤 Sprout — Listening...")
+ 
+        def on_command(text: str):
+            """Called when STT produces text."""
+            log.info(f"Command received: {text}")
+            tray.set_state("thinking", "💭 Sprout — Processing...")
+            try:
+                orchestrator.process(text)
+                log.info("Command processed successfully")
+            except Exception as e:
+                log.error(f"Command failed: {e}")
+                tray.set_state("error", f"❌ Error: {str(e)[:40]}")
+            finally:
+                tray.set_state("idle", "🌱 Sprout — Waiting for wake word")
+ 
+        pipeline = VoicePipeline(
+            on_wake_word_callback=on_wake_word,
+            on_command_callback=on_command
+        )
+ 
+        tray.set_state("idle", "🌱 Sprout — Say 'Hey Sprout' to activate")
+        log.info("Voice pipeline ready — listening for wake word")
+ 
+        pipeline.start()  # blocking — runs forever
+ 
+    except ImportError as e:
+        log.error(f"Voice dependencies missing: {e}")
+        tray.set_state("error", "❌ Voice deps missing — check logs")
+ 
+        # Fall back to keeping tray alive without voice
+        import time
+        log.info("Running in tray-only mode (no voice)")
+        while True:
+            time.sleep(60)
+ 
+    except KeyboardInterrupt:
+        log.info("Sprout stopped by user")
+        tray.stop()
+ 
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Sprout AI Assistant")
+    parser.add_argument("--voice", action="store_true")
+    parser.add_argument("--background", action="store_true")
+    parser.add_argument("--test", action="store_true")
+    parser.add_argument("--demo", action="store_true")
+    args = parser.parse_args()
+
+    if args.test:
+        import subprocess
+        subprocess.run(["python", "test_sprout.py"])
+    elif args.demo:
+        import subprocess
+        subprocess.run(["python", "demo.py"])
+    elif args.background:
+        run_background()
+    elif args.voice:
+        # your existing voice mode call
+        main()
+    else:
+        main()

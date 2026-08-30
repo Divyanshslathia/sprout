@@ -150,6 +150,7 @@ class EnhancedOrchestrator:
             console.print(f"[dim]💡 Pattern: {context['patterns'][0]}[/dim]\n")
 
         # Step 4: Human in the loop for SENSITIVE/DESTRUCTIVE
+        user_confirmed = False
         if risk_level in [RiskLevel.SENSITIVE, RiskLevel.DESTRUCTIVE]:
             if not self._request_confirmation(user_input, intent_type, risk_level):
                 result = {
@@ -159,9 +160,10 @@ class EnhancedOrchestrator:
                 }
                 console.print(f"[yellow]{result['message']}[/yellow]")
                 return result
+            user_confirmed = True  # user said yes, carry this forward
 
-        # Step 5: Execute through appropriate agent
-        result = self._execute_action(intent_type, action, params, risk_level)
+        # Step 4: Route to appropriate agent
+        result = self._execute_action(intent_type, action, params, risk_level, user_confirmed)
 
         # Step 6: Enhance response with LLM if available
         if self.use_llm and result.get("success"):
@@ -217,7 +219,7 @@ class EnhancedOrchestrator:
         return Confirm.ask("Do you want to proceed?", default=False)
 
     def _execute_action(self, intent_type: IntentType, action: str,
-                       params: Dict, risk_level: RiskLevel) -> Dict[str, Any]:
+                   params: Dict, risk_level: RiskLevel, user_confirmed: bool = False) -> Dict[str, Any]:
         """Execute action through appropriate agent"""
 
         try:
@@ -227,16 +229,18 @@ class EnhancedOrchestrator:
                                  params.get('command') or params.get('query') or 'unknown'
 
             if intent_type in [IntentType.SYSTEM_ACTION, IntentType.APPLICATION_CONTROL]:
-                result = self.system_agent.execute(action, params, risk_level)
+                result = self.system_agent.execute(action, params, risk_level, user_confirmed)
 
             elif intent_type == IntentType.FILE_OPERATION:
-                result = self.file_agent.execute(action, params, risk_level)
+                result = self.file_agent.execute(action, params, risk_level, user_confirmed)
 
             elif intent_type == IntentType.TERMINAL_OPERATION:
-                result = self.system_agent.execute('run_command', params, risk_level)
+                result = self.system_agent.execute('run_command', params, risk_level, user_confirmed)
 
             elif intent_type in [IntentType.INFORMATION, IntentType.CONVERSATION]:
-                result = self.research_agent.execute(action, params)
+                # normalize any conversational action to answer_question
+                safe_action = action if action in ["search_web", "answer_question", "recall_action"] else "answer_question"
+                result = self.research_agent.execute(safe_action, params)
 
             else:
                 result = {

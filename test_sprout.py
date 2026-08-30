@@ -29,7 +29,7 @@ def test_intent_classification():
     classifier = IntentClassifier()
 
     test_cases = [
-        ("open terminal", IntentType.SYSTEM_ACTION, RiskLevel.SENSITIVE),
+        ("open terminal", IntentType.SYSTEM_ACTION, RiskLevel.SAFE),
         ("what is the weather", IntentType.INFORMATION, RiskLevel.SAFE),
         ("delete file test.txt", IntentType.FILE_OPERATION, RiskLevel.DESTRUCTIVE),
         ("search for Python", IntentType.INFORMATION, RiskLevel.SAFE),

@@ -13,6 +13,7 @@ class ResearchAgent:
     def __init__(self):
         self.web_tools = WebTools()
         self.action_history = ActionHistory()
+        self._init_llm()
 
     def execute(self, action: str, params: Dict[str, Any]) -> Dict:
         """
@@ -34,14 +35,13 @@ class ResearchAgent:
             return self.web_tools.open_url(url)
 
         elif action == "answer_question":
-            # For Phase 1, provide basic responses
-            question = params.get('question', '')
+            question = params.get('question', params.get('query', ''))
+            answer = self._generate_answer(question)
             return {
                 "success": True,
-                "answer": self._generate_answer(question),
-                "source": "local_knowledge"
+                "message": answer,  # changed from "answer" to "message"
+                "source": "llm"
             }
-
         elif action == "recall_action":
             # Search action history
             query = params.get('query', '')
@@ -55,19 +55,24 @@ class ResearchAgent:
         else:
             return {"success": False, "message": f"Unknown action: {action}"}
 
+    def _init_llm(self):
+        """Initialize Gemini for answering questions"""
+        try:
+            import google.generativeai as genai
+            import os
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key:
+                genai.configure(api_key=api_key)
+                self.llm = genai.GenerativeModel('gemini-3.5-flash')
+            else:
+                self.llm = None
+        except Exception:
+            self.llm = None
     def _generate_answer(self, question: str) -> str:
-        """
-        Generate a basic answer to a question
-
-        Note: In Phase 3, this will be enhanced with RAG and LLM integration
-        """
         question_lower = question.lower()
 
-        # Basic pattern matching for common questions
-        if "weather" in question_lower:
-            return "I can open a weather website for you. Which city would you like to check?"
-
-        elif "time" in question_lower:
+        # Handle time/date locally — no LLM needed
+        if "time" in question_lower:
             from datetime import datetime
             return f"The current time is {datetime.now().strftime('%H:%M:%S')}"
 
@@ -75,19 +80,17 @@ class ResearchAgent:
             from datetime import datetime
             return f"Today is {datetime.now().strftime('%A, %B %d, %Y')}"
 
-        elif "who are you" in question_lower or "what are you" in question_lower:
-            return "I'm Sprout, your personal AI assistant. I can help you control your computer, manage files, and answer questions."
+        elif any(w in question_lower for w in ["who are you", "what are you"]):
+            return "I'm Sprout, your personal AI assistant. I can open apps, manage files, run commands and answer questions."
 
-        elif "help" in question_lower:
-            return """I can help you with:
-- Opening and closing applications
-- Managing files (read, write, delete)
-- Running terminal commands
-- Searching the web
-- Answering basic questions
-- Taking screenshots and managing clipboard
+        # Use Gemini for everything else
+        if self.llm:
+            try:
+                response = self.llm.generate_content(
+                    f"You are Sprout, a personal AI assistant. Answer concisely in 1-2 sentences: {question}"
+                )
+                return response.text.strip()
+            except Exception as e:
+                return f"I couldn't answer that: {e}"
 
-Just ask me naturally, like "open terminal" or "search for Python tutorials"."""
-
-        else:
-            return "I'll search the web for that information. Let me open a browser search for you."
+        return "I don't have an answer for that. Try searching the web."

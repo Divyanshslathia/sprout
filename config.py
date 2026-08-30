@@ -24,7 +24,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # LLM Configuration
 class LLMConfig(BaseModel):
-    model_name: str = "gemini-3.6-flash"
+    model_name: str = "gemini-3.5-flash"
     temperature: float = 0.7
     max_tokens: int = 2048
 
@@ -45,7 +45,8 @@ class PermissionConfig(BaseModel):
 class VoiceConfig(BaseModel):
     wake_word: str = "sprout"
     whisper_model: str = "tiny"
-    porcupine_sensitivity: float = 0.5
+    wake_word_threshold: float = 0.5
+    wake_word_model: str = "hey_jarvis"  # replace with path to hey_sprout.tflite later
     tts_rate: int = 150
 
 # System settings

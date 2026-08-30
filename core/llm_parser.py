@@ -31,7 +31,7 @@ class LLMIntentParser:
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel('gemini-3.5-flash')
             print("✓ Gemini LLM initialized")
         except ImportError:
             print("Warning: google-generativeai not installed. Install with: pip install google-generativeai")
@@ -87,7 +87,14 @@ Extract parameters based on intent:
 - For search: {{"query": "..."}}"""
 
             response = self.model.generate_content(prompt)
-            result = json.loads(response.text.strip())
+            # strip markdown code blocks if Gemini wraps response in them
+            text = response.text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+            text = text.strip()
+            result = json.loads(text)
 
             # Convert strings to enums
             intent_type = IntentType[result["intent_type"]]

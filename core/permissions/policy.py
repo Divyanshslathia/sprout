@@ -48,7 +48,7 @@ class PermissionPolicy:
         with open(self.policy_file, 'r') as f:
             return json.load(f)
 
-    def check_permission(self, action: str, target: str, risk_level: RiskLevel) -> tuple[bool, Optional[str]]:
+    def check_permission(self, action: str, target: str, risk_level: RiskLevel, user_confirmed: bool = False) -> tuple[bool, Optional[str]]:
         """
         Check if an action is permitted
 
@@ -63,12 +63,15 @@ class PermissionPolicy:
 
         # DESTRUCTIVE actions always need confirmation
         if risk_level == RiskLevel.DESTRUCTIVE:
-            return False, "DESTRUCTIVE action requires explicit confirmation"
+            if user_confirmed:
+                return True, None  # confirmed, allow it
+            else:
+                return False, "DESTRUCTIVE action requires explicit confirmation"
 
         # Check blocked commands
         for blocked_cmd in self.permissions.get("blocked_commands", []):
             if blocked_cmd in target.lower():
-                return False, f"Blocked command pattern: {blocked_cmd}"
+                return False, f"Blocked command: {blocked_cmd}"
 
         # Check directory permissions for file operations
         if "file" in action.lower() or "directory" in action.lower():

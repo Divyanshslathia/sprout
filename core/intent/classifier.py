@@ -59,23 +59,31 @@ class IntentClassifier:
         return max(scores, key=scores.get)
 
     def _classify_risk(self, text: str, intent_type: IntentType) -> RiskLevel:
-        """Assess risk level based on keywords and intent"""
-
-        # Check for destructive keywords
+        
+        # Split into words for exact matching — prevents "rm" matching "terminal"
+        words = text.split()
+        
+        # Destructive keywords — check whole words only
         for keyword in self.DESTRUCTIVE_KEYWORDS:
-            if keyword in text:
+            if keyword in words:  # "in words" not "in text"
                 return RiskLevel.DESTRUCTIVE
 
-        # File operations and terminal commands are sensitive
-        if intent_type in [IntentType.FILE_OPERATION, IntentType.TERMINAL_OPERATION]:
-            # Check for sensitive operations
+        # Terminal commands are sensitive by default
+        if intent_type == IntentType.TERMINAL_OPERATION:
+            return RiskLevel.SENSITIVE
+
+        # File operations — only sensitive if modifying
+        if intent_type == IntentType.FILE_OPERATION:
             for keyword in self.SENSITIVE_KEYWORDS:
                 if keyword in text:
                     return RiskLevel.SENSITIVE
+            return RiskLevel.SAFE
 
-        # System actions may be sensitive
+        # System actions — open/close/launch are SAFE
         if intent_type == IntentType.SYSTEM_ACTION:
-            return RiskLevel.SENSITIVE
+            for keyword in self.SENSITIVE_KEYWORDS:
+                if keyword in text:
+                    return RiskLevel.SENSITIVE
+            return RiskLevel.SAFE
 
-        # Information and conversation are safe
         return RiskLevel.SAFE

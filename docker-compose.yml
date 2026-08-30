@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  sprout:
+    build: .
+    container_name: sprout
+    stdin_open: true   # keeps terminal interactive
+    tty: true          # allows Rich formatting to work
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data       # persist memory and permissions
+      - ./logs:/app/logs       # persist logs
+      - ./voice/models:/app/voice/models  # persist custom wake word models

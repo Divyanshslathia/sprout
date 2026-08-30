@@ -20,11 +20,11 @@ class ResearchAgent:
         Execute a research action
 
         Args:
-            action: Action to perform (search, answer, recall, etc.)
+            action: Action to perform (search_web, answer_question, recall_action)
             params: Parameters for the action
 
         Returns:
-            Result dictionary
+            Result dictionary with at minimum: success, message
         """
         if action == "search_web":
             query = params.get('query', '')
@@ -39,15 +39,16 @@ class ResearchAgent:
             answer = self._generate_answer(question)
             return {
                 "success": True,
-                "message": answer,  # changed from "answer" to "message"
+                "message": answer,
                 "source": "llm"
             }
         elif action == "recall_action":
-            # Search action history
             query = params.get('query', '')
             actions = self.action_history.search_actions(query)
+            summary = f"Found {len(actions)} past actions" if actions else "No matching actions found"
             return {
                 "success": True,
+                "message": summary,
                 "actions": actions,
                 "count": len(actions)
             }
@@ -58,17 +59,20 @@ class ResearchAgent:
     def _init_llm(self):
         """Initialize Gemini for answering questions"""
         try:
-            import google.generativeai as genai
             import os
+            from google import genai
             api_key = os.getenv("GEMINI_API_KEY")
             if api_key:
-                genai.configure(api_key=api_key)
-                self.llm = genai.GenerativeModel('gemini-3.5-flash')
+                self._client = genai.Client(api_key=api_key)
+                self.llm = True  # flag that LLM is available
             else:
+                self._client = None
                 self.llm = None
         except Exception:
+            self._client = None
             self.llm = None
     def _generate_answer(self, question: str) -> str:
+        """Generate an answer using local logic or Gemini"""
         question_lower = question.lower()
 
         # Handle time/date locally — no LLM needed
@@ -76,21 +80,22 @@ class ResearchAgent:
             from datetime import datetime
             return f"The current time is {datetime.now().strftime('%H:%M:%S')}"
 
-        elif "date" in question_lower:
+        if "date" in question_lower:
             from datetime import datetime
             return f"Today is {datetime.now().strftime('%A, %B %d, %Y')}"
 
-        elif any(w in question_lower for w in ["who are you", "what are you"]):
-            return "I'm Sprout, your personal AI assistant. I can open apps, manage files, run commands and answer questions."
+        if any(phrase in question_lower for phrase in ["who are you", "what are you"]):
+            return "I'm Sprout, your personal AI assistant. I can open apps, manage files, run commands, and answer questions."
 
         # Use Gemini for everything else
         if self.llm:
             try:
-                response = self.llm.generate_content(
-                    f"You are Sprout, a personal AI assistant. Answer concisely in 1-2 sentences: {question}"
+                response = self._client.models.generate_content(
+                    model='gemini-3.6-flash',
+                    contents=f"You are Sprout, a personal AI assistant. Answer concisely in 1-2 sentences: {question}"
                 )
                 return response.text.strip()
             except Exception as e:
                 return f"I couldn't answer that: {e}"
 
-        return "I don't have an answer for that. Try searching the web."
+        return "LLM unavailable — set GEMINI_API_KEY to enable answers."

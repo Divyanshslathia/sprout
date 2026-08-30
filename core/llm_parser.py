@@ -4,52 +4,43 @@ LLM-powered Intent Parser using Gemini
 Advanced intent classification and action parsing using LLM
 """
 import os
-from typing import Dict, Tuple, Optional
 import json
+from typing import Dict, Tuple, Optional
+
 from core.intent.types import IntentType, RiskLevel
 
 class LLMIntentParser:
     """LLM-based intent classification and parameter extraction"""
 
     def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize LLM parser
-
-        Args:
-            api_key: Gemini API key
-        """
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model = None
         self._initialize_model()
 
     def _initialize_model(self):
-        """Lazy initialize Gemini model"""
+        """Initialize Gemini model"""
         if not self.api_key:
             print("Warning: GEMINI_API_KEY not set. Using fallback keyword parser.")
             return
 
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-3.5-flash')
+            from google import genai
+            self._client = genai.Client(api_key=self.api_key)
+            self.model = True  # flag that LLM is available
             print("✓ Gemini LLM initialized")
         except ImportError:
-            print("Warning: google-generativeai not installed. Install with: pip install google-generativeai")
+            print("Warning: google-genai not installed. Run: pip install google-genai")
         except Exception as e:
             print(f"Warning: Failed to initialize Gemini: {str(e)}")
 
-    def parse_intent(self, user_input: str) -> Tuple[IntentType, RiskLevel, Dict]:
+    def parse_intent(self, user_input: str) -> Tuple[IntentType, RiskLevel, str, Dict]:
         """
-        Parse user input using LLM to extract intent, risk, and parameters
-
-        Args:
-            user_input: Raw user command
+        Parse user input using LLM to extract intent, risk, action, and parameters
 
         Returns:
-            Tuple of (IntentType, RiskLevel, parameters_dict)
+            Tuple of (IntentType, RiskLevel, action_str, parameters_dict)
         """
         if not self.model:
-            # Fallback to simple parsing
             return self._fallback_parse(user_input)
 
         try:
@@ -57,50 +48,49 @@ class LLMIntentParser:
 
 User command: "{user_input}"
 
-Respond with JSON only:
+Respond with JSON only, no markdown:
 {{
   "intent_type": "one of: INFORMATION, SYSTEM_ACTION, FILE_OPERATION, APPLICATION_CONTROL, TERMINAL_OPERATION, CONVERSATION",
   "risk_level": "one of: SAFE, SENSITIVE, DESTRUCTIVE",
-  "action": "specific action to take (e.g., open_app, read_file, search_web)",
+  "action": "one of: open_app, close_app, run_command, take_screenshot, get_clipboard, set_clipboard, read, write, delete, list, search_web, answer_question, recall_action",
   "parameters": {{
     "key": "value"
   }},
   "reasoning": "brief explanation"
 }}
 
-Guidelines:
+Intent guidelines:
 - INFORMATION: questions, searches, lookups
 - SYSTEM_ACTION: OS operations (screenshot, clipboard)
 - FILE_OPERATION: file/directory operations
 - APPLICATION_CONTROL: open/close apps
-- TERMINAL_OPERATION: run commands
-- CONVERSATION: chat, memory recall
+- TERMINAL_OPERATION: run shell commands
+- CONVERSATION: chat, greetings, memory recall
 
-- SAFE: no system changes (questions, reads)
-- SENSITIVE: system changes that are reversible (open app, write file)
-- DESTRUCTIVE: dangerous operations (delete, remove, system modifications)
+Risk guidelines:
+- SAFE: no system changes (questions, reads, greetings)
+- SENSITIVE: reversible changes (open app, write file)
+- DESTRUCTIVE: dangerous operations (delete, system modifications)
 
-Extract parameters based on intent:
-- For app operations: {{"app_name": "..."}}
-- For file operations: {{"filepath": "...", "content": "..."}}
-- For terminal: {{"command": "..."}}
-- For search: {{"query": "..."}}"""
+Parameter format by action:
+- open_app / close_app: {{"app_name": "..."}}
+- run_command: {{"command": "..."}}
+- read / write / delete / list: {{"filepath": "..."}}
+- search_web: {{"query": "..."}}
+- answer_question: {{"question": "..."}}
+- recall_action: {{"query": "..."}}"""
 
-            response = self.model.generate_content(prompt)
-            # strip markdown code blocks if Gemini wraps response in them
-            text = response.text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            text = text.strip()
+            response = self._client.models.generate_content(
+                model='gemini-3.6-flash',
+                contents=prompt
+            )
+            text = self._strip_markdown(response.text)
             result = json.loads(text)
 
-            # Convert strings to enums
             intent_type = IntentType[result["intent_type"]]
             risk_level = RiskLevel[result["risk_level"]]
             action = result["action"]
-            parameters = result["parameters"]
+            parameters = result.get("parameters", {})
 
             return intent_type, risk_level, action, parameters
 
@@ -108,16 +98,23 @@ Extract parameters based on intent:
             print(f"LLM parsing failed: {str(e)}")
             return self._fallback_parse(user_input)
 
+    def _strip_markdown(self, text: str) -> str:
+        """Remove markdown code fences Gemini sometimes wraps responses in"""
+        text = text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            # drop first line (```json or ```) and last line (```)
+            text = "\n".join(lines[1:-1])
+        return text.strip()
+
     def _fallback_parse(self, user_input: str) -> Tuple[IntentType, RiskLevel, str, Dict]:
-        """Fallback to simple keyword-based parsing"""
+        """Fallback to keyword-based parsing when LLM is unavailable"""
         from core.intent.classifier import IntentClassifier
 
         classifier = IntentClassifier()
         intent_type, risk_level = classifier.classify(user_input)
-
-        # Simple parameter extraction
-        params = self._extract_basic_params(user_input, intent_type)
         action = self._infer_action(user_input, intent_type)
+        params = self._extract_basic_params(user_input, intent_type)
 
         return intent_type, risk_level, action, params
 
@@ -127,7 +124,6 @@ Extract parameters based on intent:
         params = {}
 
         if intent_type == IntentType.APPLICATION_CONTROL:
-            # Find app name after open/close/launch
             for i, word in enumerate(words):
                 if word in ["open", "launch", "start", "close", "quit"]:
                     if i + 1 < len(words):
@@ -135,22 +131,19 @@ Extract parameters based on intent:
                     break
 
         elif intent_type == IntentType.FILE_OPERATION:
-            # Extract filepath
             for word in words:
                 if "/" in word or word.startswith("~"):
                     params["filepath"] = word.strip("'\"")
                     break
 
         elif intent_type == IntentType.TERMINAL_OPERATION:
-            # Extract command after "run" or "execute"
             for i, word in enumerate(words):
                 if word in ["run", "execute", "command"]:
                     params["command"] = " ".join(text.split()[i + 1:])
                     break
 
-        elif intent_type == IntentType.INFORMATION:
-            # Extract search query
-            params["query"] = text
+        elif intent_type in [IntentType.INFORMATION, IntentType.CONVERSATION]:
+            params["question"] = text
 
         return params
 
@@ -161,17 +154,17 @@ Extract parameters based on intent:
         if intent_type == IntentType.APPLICATION_CONTROL:
             if any(w in text_lower for w in ["open", "launch", "start"]):
                 return "open_app"
-            elif any(w in text_lower for w in ["close", "quit", "kill"]):
+            if any(w in text_lower for w in ["close", "quit", "kill"]):
                 return "close_app"
 
         elif intent_type == IntentType.FILE_OPERATION:
             if "read" in text_lower:
                 return "read"
-            elif "write" in text_lower or "create" in text_lower:
+            if "write" in text_lower or "create" in text_lower:
                 return "write"
-            elif "delete" in text_lower or "remove" in text_lower:
+            if "delete" in text_lower or "remove" in text_lower:
                 return "delete"
-            elif "list" in text_lower:
+            if "list" in text_lower:
                 return "list"
 
         elif intent_type == IntentType.TERMINAL_OPERATION:
@@ -180,20 +173,18 @@ Extract parameters based on intent:
         elif intent_type == IntentType.INFORMATION:
             if "search" in text_lower:
                 return "search_web"
-            else:
-                return "answer_question"
+            return "answer_question"
 
         elif intent_type == IntentType.CONVERSATION:
-            if "remember" in text_lower or "recall" in text_lower:
+            if any(w in text_lower for w in ["remember", "recall", "what did"]):
                 return "recall_action"
-            else:
-                return "answer_question"
+            return "answer_question"
 
-        return "unknown"
+        return "answer_question"
 
     def enhance_response(self, user_input: str, raw_response: str, context: str = "") -> str:
         """
-        Use LLM to generate natural, personalized response
+        Use LLM to generate a natural, friendly response
 
         Args:
             user_input: Original user command
@@ -213,17 +204,15 @@ User asked: "{user_input}"
 System result: {raw_response}
 Context: {context}
 
-Generate a brief, friendly response (1-2 sentences) that:
-- Confirms what was done
-- Is conversational and natural
-- Doesn't repeat technical details
-- Matches the tone of a personal assistant
+Reply in 1-2 sentences. Be friendly and conversational. Don't repeat technical details."""
 
-Response:"""
-
-            response = self.model.generate_content(prompt)
+            response = self._client.models.generate_content(
+                model='gemini-3.6-flash',
+                contents=prompt
+            )
             return response.text.strip()
 
         except Exception as e:
             print(f"Response enhancement failed: {str(e)}")
             return raw_response
+        

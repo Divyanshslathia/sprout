@@ -62,9 +62,8 @@ def run_text_mode():
         orchestrator = EnhancedOrchestrator(use_llm=True, use_knowledge_graph=True)
     except Exception as e:
         console.print(f"[yellow]Warning: Enhanced features unavailable: {str(e)}[/yellow]")
-        console.print("[yellow]Falling back to Phase 1 orchestrator[/yellow]")
-        from core.agents.orchestrator import OrchestratorAgent
-        orchestrator = OrchestratorAgent()
+        console.print("[yellow]Could not start. Check your .env and dependencies.[/yellow]")
+        raise
 
     try:
         while True:
@@ -309,8 +308,21 @@ def show_recommendations(orchestrator):
 
 
 def main():
-    """Main entry point"""
-    run_text_mode()
+    parser = argparse.ArgumentParser(description="Sprout AI Assistant")
+    parser.add_argument("--voice", action="store_true")
+    parser.add_argument("--background", action="store_true")
+    parser.add_argument("--test", action="store_true")
+    args = parser.parse_args()
+
+    if args.test:
+        import subprocess
+        subprocess.run(["python", "test_sprout.py"])
+    elif args.background:
+        run_background()
+    elif args.voice:
+        run_voice_mode()
+    else:
+        run_text_mode()
 def run_background():
     """
     Run Sprout as a silent background process.

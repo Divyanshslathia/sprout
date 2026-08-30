@@ -217,7 +217,7 @@ class EnhancedOrchestrator:
         console.print(f"[dim]Command: {user_input}[/dim]\n")
 
         return Confirm.ask("Do you want to proceed?", default=False)
-
+    
     def _execute_action(self, intent_type: IntentType, action: str,
                    params: Dict, risk_level: RiskLevel, user_confirmed: bool = False) -> Dict[str, Any]:
         """Execute action through appropriate agent"""
@@ -260,13 +260,6 @@ class EnhancedOrchestrator:
                 "action": action,
                 "target": params.get('target', 'error')
             }
-
-    def _parse_action_legacy(self, user_input: str, intent_type: IntentType) -> tuple:
-        """Legacy action parsing (fallback when LLM unavailable)"""
-        from core.agents.orchestrator import OrchestratorAgent
-        temp_orch = OrchestratorAgent()
-        return temp_orch._parse_action(user_input, intent_type)
-
     def get_memory_stats(self) -> Dict:
         """Get statistics about stored memories"""
         stats = self.vector_store.get_collection_stats()
@@ -300,3 +293,72 @@ class EnhancedOrchestrator:
         console.print(f"Preferences: {memory_stats['preferences']}")
         console.print(f"Action memories: {memory_stats['actions']}")
         console.print(f"Total memories: {memory_stats['total_memories']}")
+    def _parse_action_legacy(self, user_input: str, intent_type: IntentType) -> tuple:
+        user_input_lower = user_input.lower()
+        words = user_input_lower.split()
+
+        if "open" in words or "launch" in words or "start" in words:
+            try:
+                idx = max([words.index(w) for w in ["open", "launch", "start"] if w in words])
+                app_name = words[idx + 1] if idx + 1 < len(words) else "unknown"
+                return "open_app", {"app_name": app_name}
+            except:
+                return "open_app", {"app_name": "unknown"}
+
+        elif "close" in words or "quit" in words or "kill" in words:
+            try:
+                idx = max([words.index(w) for w in ["close", "quit", "kill"] if w in words])
+                app_name = words[idx + 1] if idx + 1 < len(words) else "unknown"
+                return "close_app", {"app_name": app_name}
+            except:
+                return "close_app", {"app_name": "unknown"}
+
+        elif "screenshot" in user_input_lower:
+            return "take_screenshot", {}
+
+        elif "clipboard" in user_input_lower:
+            if any(w in words for w in ["get", "show", "what"]):
+                return "get_clipboard", {}
+            return "set_clipboard", {"content": user_input}
+
+        elif "read" in words and "file" in user_input_lower:
+            return "read", {"filepath": self._extract_filepath(user_input)}
+
+        elif "write" in words or "create" in words:
+            return "write", {"filepath": self._extract_filepath(user_input), "content": ""}
+
+        elif "delete" in words or "remove" in words:
+            return "delete", {"filepath": self._extract_filepath(user_input)}
+
+        elif "list" in words and any(w in words for w in ["file", "directory", "folder"]):
+            return "list", {"dirpath": self._extract_filepath(user_input) or "."}
+
+        elif "run" in words or "execute" in words or "command" in words:
+            try:
+                idx = max([words.index(w) for w in ["run", "execute", "command"] if w in words])
+                command = " ".join(user_input.split()[idx + 1:])
+                return "run_command", {"command": command}
+            except:
+                return "run_command", {"command": user_input}
+
+        elif any(w in words for w in ["search", "find", "look", "google"]):
+            query = user_input
+            for prefix in ["search for", "find", "look up", "google"]:
+                if prefix in user_input_lower:
+                    query = user_input_lower.split(prefix, 1)[1].strip()
+                    break
+            return "search_web", {"query": query}
+
+        elif "what did" in user_input_lower or "yesterday" in words or "recall" in words:
+            return "recall_action", {"query": user_input}
+
+        else:
+            return "answer_question", {"question": user_input}
+
+    def _extract_filepath(self, text: str) -> str:
+        """Extract filepath from user input"""
+        words = text.split()
+        for word in words:
+            if '/' in word or word.startswith('~'):
+                return word.strip('"\'')
+        return words[-1] if words else "unknown"

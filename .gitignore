@@ -25,6 +25,15 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
-
 # Chroma vector DB
 chroma/
+
+# Voice models
+voice/models/
+*.tflite
+
+# Sprout session notes
+sprout.md
+
+# Test cache
+.pytest_cache/

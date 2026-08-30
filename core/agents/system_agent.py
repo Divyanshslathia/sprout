@@ -46,7 +46,7 @@ class SystemAgent:
         elif action == "close_app":
             return self.os_tools.close_application(params['app_name'])
 
-        elif action == "run_command":
+        elif action in ("run_command", "execute_command"):
             command = params['command']
             working_dir = params.get('working_dir')
             return self.os_tools.run_terminal_command(command, working_dir)

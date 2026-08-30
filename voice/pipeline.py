@@ -18,26 +18,21 @@ class VoicePipeline:
     """Complete voice interaction pipeline"""
 
     def __init__(self,
-                 wake_word_model: Optional[str] = None,
-                 on_command: Optional[Callable[[str], str]] = None):
-        """
-        Initialize voice pipeline
-
-        Args:
-            wake_word_model: Path to custom wake word model (optional)
-            on_command: Callback function that processes voice command and returns response
-        """
+             wake_word_model: Optional[str] = None,
+             on_command: Optional[Callable[[str], str]] = None,
+             on_wake_word_callback: Optional[Callable] = None,
+             on_command_callback: Optional[Callable[[str], None]] = None):
         self.wake_word_model = wake_word_model or voice_config.wake_word_model
-        self.on_command = on_command
-
-        # Initialize components
+        # Support both calling conventions
+        self.on_command = on_command or on_command_callback
+        self.on_wake_word_user_callback = on_wake_word_callback
         self.wake_word = None
         self.stt = WhisperSTT(model_size=voice_config.whisper_model)
         self.tts = TextToSpeech(rate=voice_config.tts_rate)
 
         # State
         self.is_running = False
-        self.listen_duration = 5  # seconds to listen after wake word
+        self.listen_duration = 5
 
     def initialize_wake_word(self):
         """Initialize wake word detector (only when needed)"""
@@ -47,18 +42,19 @@ class VoicePipeline:
                     model_path=self.wake_word_model if self.wake_word_model != "hey_jarvis" else None,
                     wake_word=voice_config.wake_word_model,
                     threshold=voice_config.wake_word_threshold,
-                    keyword=voice_config.wake_word
                 )
                 console.print(f"[green]✓ Wake word detector ready[/green]")
             except Exception as e:
                 console.print(f"[red]✗ Wake word initialization failed: {str(e)}[/red]")
-                console.print("[yellow]Tip: Get Porcupine key from https://picovoice.ai/[/yellow]")
+                console.print("[yellow]Tip: Check openwakeword install: pip install openwakeword pyaudio[/yellow]")
                 raise
 
     def _on_wake_word_detected(self):
         """Called when wake word is detected"""
         console.print("\n[bold green]👂 Listening...[/bold green]")
         self.tts.speak("Yes?")
+        if self.on_wake_word_user_callback:
+            self.on_wake_word_user_callback()
 
         # Listen and transcribe
         result = self.stt.listen_and_transcribe(duration=self.listen_duration)
@@ -98,8 +94,7 @@ class VoicePipeline:
 
         try:
             self.wake_word.start_listening(
-                callback=self._on_wake_word_detected,
-                threshold=voice_config.wake_word_threshold
+                callback=self._on_wake_word_detected
             )
         except KeyboardInterrupt:
             console.print("\n[yellow]Voice mode stopped[/yellow]")

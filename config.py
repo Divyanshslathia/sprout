@@ -24,7 +24,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # LLM Configuration
 class LLMConfig(BaseModel):
-    model_name: str = "gemini-3.5-flash"
+    primary_model: str = "gemini-3.6-flash"
+    fallback_model: str = "gemini-3.7-flash"  # newer, also stable
     temperature: float = 0.7
     max_tokens: int = 2048
 

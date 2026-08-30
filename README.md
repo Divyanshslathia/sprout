@@ -15,7 +15,7 @@
 
 ### ✅ Phase 2 — Voice Layer (Complete)
 - **🎤 Speech-to-Text**: Whisper tiny model (offline, CPU-friendly)
-- **👂 Wake Word Detection**: Porcupine "Hey Sprout" activation
+- **👂 Wake Word Detection**: OpenWakeWord (hey_jarvis placeholder, train Hey Sprout later — free)
 - **🔊 Text-to-Speech**: pyttsx3 voice responses
 - **🎙️ Voice Pipeline**: Complete wake word → STT → agent → TTS flow
 
@@ -47,7 +47,7 @@ source venv/bin/activate
 pip install rich pydantic python-dotenv chromadb networkx
 
 # Optional: Install voice dependencies
-pip install openai-whisper pvporcupine pyttsx3 pyaudio
+pip install openai-whisper openwakeword pyttsx3 pyaudio
 
 # Configure (add your Gemini API key for LLM features)
 cp .env.example .env
@@ -153,8 +153,7 @@ Response Enhancement (LLM + RAG)
 sprout/
 ├── core/
 │   ├── agents/
-│   │   ├── orchestrator.py         # Phase 1 orchestrator
-│   │   ├── orchestrator_v2.py      # Phase 2 & 3 enhanced
+│   ├── orchestrator_v2.py      # Enhanced orchestrator (active)
 │   │   ├── file_agent.py
 │   │   ├── system_agent.py
 │   │   └── research_agent.py
@@ -195,8 +194,8 @@ sprout/
 # Required for LLM features (Phase 3)
 GEMINI_API_KEY=your_gemini_api_key
 
-# Required for wake word (Phase 2)
-PORCUPINE_ACCESS_KEY=your_porcupine_key
+# Optional: path to custom wake word model
+# WAKE_WORD_MODEL=voice/models/hey_sprout.tflite
 ```
 
 ### Permissions (data/permissions.json)
@@ -269,12 +268,12 @@ pip install rich pydantic python-dotenv chromadb networkx
 
 ### Voice (Phase 2 - Optional)
 ```bash
-pip install openai-whisper pvporcupine pyttsx3 pyaudio
+pip install openai-whisper openwakeword pyttsx3 pyaudio
 ```
 
 ### LLM (Phase 3 - Optional)
 ```bash
-pip install google-generativeai
+pip install google-genai
 ```
 
 ### Full Install
@@ -348,7 +347,7 @@ python sprout.py --voice
 
 - **Lines of Code**: ~4,500+
 - **Files**: 30+
-- **Test Coverage**: 19/21 tests passing (90%)
+- **Test Coverage**: 21/22 tests passing (95%)
 - **Commits**: 3 major milestones
 - **Development Time**: Phases 1-3 complete in single session
 
